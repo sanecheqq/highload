@@ -1,0 +1,54 @@
+services:
+  postgres:
+    image: postgres:17
+    container_name: postgres
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - '5432:5432'
+    volumes:
+      - './sql/:/docker-entrypoint-initdb.d/'
+      - './data:/data'
+
+  spark-master:
+    image: apache/spark:latest
+    container_name: spark-master
+    environment:
+      - SPARK_MODE=master
+      - SPARK_MASTER_HOST=spark-master
+      - SPARK_NO_DAEMONIZE=yes
+      - HOME=/tmp
+    ports:
+      - "7077:7077"
+      - "8080:8080"
+    volumes:
+      - ./scripts:/opt/spark-apps
+      - ./jars:/opt/jars
+      - ./target:/opt/java-apps
+    depends_on:
+      - postgres
+    command: bash -c "/opt/spark/sbin/start-master.sh && tail -f /dev/null"
+
+  spark-worker:
+    image: apache/spark:latest
+    container_name: spark-worker
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER=spark://spark-master:7077
+      - SPARK_NO_DAEMONIZE=yes
+    depends_on:
+      - spark-master
+    volumes:
+      - ./scripts:/opt/spark-apps
+      - ./jars:/opt/jars
+      - ./target:/opt/java-apps
+    command: bash -c "/opt/spark/sbin/start-worker.sh spark://spark-master:7077 && tail -f /dev/null"
+
+  clickhouse:
+    image: yandex/clickhouse-server:latest
+    container_name: clickhouse
+    ports:
+      - "8123:8123"
+      - "9000:9000"
